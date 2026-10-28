@@ -27,10 +27,6 @@ jobs:
           pip install "flet[all]"
           flet --version
 
-      - name: Show required Flutter version
-        run: |
-          python -c "import flet.version as v; print('flet', v.version, 'needs flutter', v.flutter_version)"
-
       - name: Build APK
         env:
           FLET_CLI_NO_RICH_OUTPUT: "true"
