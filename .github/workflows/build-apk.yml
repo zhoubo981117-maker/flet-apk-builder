@@ -25,39 +25,23 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install "flet[all]"
+          flet --version
 
-      - name: Install Flutter SDK (official git, full metadata)
+      - name: Show required Flutter version
         run: |
-          set -x
-          export FLUTTER_GIT_URL=https://github.com/flutter/flutter.git
-          git clone --branch stable "$FLUTTER_GIT_URL" "$HOME/flutter"
-          cd "$HOME/flutter"
-          git remote set-url origin "$FLUTTER_GIT_URL"
-          git fetch --depth=1 origin stable
-          git checkout stable
-          git config --global --add safe.directory "$HOME/flutter"
-          echo "$HOME/flutter/bin" >> "$GITHUB_PATH"
-          export PATH="$HOME/flutter/bin:$PATH"
-          flutter --version
-          flutter channel
-          flutter precache --android || true
-          flutter config --no-analytics || true
-
-      - name: Accept Android licenses
-        run: |
-          export PATH="$HOME/flutter/bin:$PATH"
-          yes | flutter doctor --android-licenses || true
-          flutter doctor -v || true
+          python -c "import flet.version as v; print('flet', v.version, 'needs flutter', v.flutter_version)"
 
       - name: Build APK
+        env:
+          FLET_CLI_NO_RICH_OUTPUT: "true"
         run: |
-          export PATH="$HOME/flutter/bin:$PATH"
-          export FLET_FLUTTER_ROOT="$HOME/flutter"
-          flet build apk --verbose 2>&1 | tee /tmp/build.log | tail -n 300
+          # --yes: 自动同意安装 Flutter SDK / JDK / Android SDK（CI 无 TTY，必须）
+          # 不再自行预装 Flutter，避免版本与 flet.version.flutter_version 不匹配
+          flet build apk --yes --verbose 2>&1 | tee /tmp/build.log
           status=${PIPESTATUS[0]}
           if [ "$status" -ne 0 ]; then
-            echo "=== BUILD FAILED, tail of log ==="
-            tail -n 120 /tmp/build.log
+            echo "=== BUILD FAILED (exit $status) ==="
+            tail -n 150 /tmp/build.log
           fi
           exit "$status"
 
