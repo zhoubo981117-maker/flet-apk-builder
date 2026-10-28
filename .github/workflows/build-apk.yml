@@ -16,39 +16,60 @@ jobs:
         with:
           python-version: "3.12"
 
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
       - name: Install Flet
         run: |
           python -m pip install --upgrade pip
           pip install "flet[all]"
 
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Install Flutter SDK (non-interactive)
+      - name: Install Flutter SDK (official git, full metadata)
         run: |
-          # Flet 需要 Flutter 3.44.8；预装可跳过 flet 内部的 y/n 交互
-          git clone --depth 1 --branch 3.44.8 https://github.com/flutter/flutter.git "$HOME/flutter" ||           git clone --depth 1 --branch stable https://github.com/flutter/flutter.git "$HOME/flutter"
+          set -x
+          export FLUTTER_GIT_URL=https://github.com/flutter/flutter.git
+          git clone --branch stable "$FLUTTER_GIT_URL" "$HOME/flutter"
+          cd "$HOME/flutter"
+          git remote set-url origin "$FLUTTER_GIT_URL"
+          git fetch --depth=1 origin stable
+          git checkout stable
+          git config --global --add safe.directory "$HOME/flutter"
           echo "$HOME/flutter/bin" >> "$GITHUB_PATH"
-          "$HOME/flutter/bin/flutter" --version || true
+          export PATH="$HOME/flutter/bin:$PATH"
+          flutter --version
+          flutter channel
+          flutter precache --android || true
+          flutter config --no-analytics || true
+
+      - name: Accept Android licenses
+        run: |
+          export PATH="$HOME/flutter/bin:$PATH"
+          yes | flutter doctor --android-licenses || true
+          flutter doctor -v || true
 
       - name: Build APK
         run: |
-          # 兜底：若仍有交互确认，用管道喂 y
-          printf 'y\n' | flet build apk --verbose 2>&1 | tail -n 250; exit ${PIPESTATUS[1]}
-          test -f build/apk/*.apk 2>/dev/null || ls -lhR build/ || true
+          export PATH="$HOME/flutter/bin:$PATH"
+          export FLET_FLUTTER_ROOT="$HOME/flutter"
+          flet build apk --verbose 2>&1 | tee /tmp/build.log | tail -n 300
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            echo "=== BUILD FAILED, tail of log ==="
+            tail -n 120 /tmp/build.log
+          fi
+          exit "$status"
 
       - name: List output
         if: always()
-        run: ls -lhR build/apk || ls -lhR build || true
+        run: ls -lhR build 2>/dev/null | head -n 200 || true
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: flet-apk
           path: |
-            build/apk/*.apk
+            build/apk/**/*.apk
             build/**/*.apk
           if-no-files-found: warn
