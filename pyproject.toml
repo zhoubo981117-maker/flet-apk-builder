@@ -1,0 +1,12 @@
+[project]
+name = "flet-apk-builder"
+version = "0.1.0"
+description = "Flet app built to APK via GitHub Actions"
+requires-python = ">=3.9"
+dependencies = ["flet>=0.28.0"]
+
+[tool.flet]
+app_module = "main"
+product = "Flet APK"
+company = "zhoubo981117-maker"
+copyright = "Copyright (c) 2026"
