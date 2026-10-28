@@ -8,7 +8,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -27,16 +27,28 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Install Flutter SDK (non-interactive)
+        run: |
+          # Flet 需要 Flutter 3.44.8；预装可跳过 flet 内部的 y/n 交互
+          git clone --depth 1 --branch 3.44.8 https://github.com/flutter/flutter.git "$HOME/flutter" ||           git clone --depth 1 --branch stable https://github.com/flutter/flutter.git "$HOME/flutter"
+          echo "$HOME/flutter/bin" >> "$GITHUB_PATH"
+          "$HOME/flutter/bin/flutter" --version || true
+
       - name: Build APK
-        run: flet build apk --verbose
+        run: |
+          # 兜底：若仍有交互确认，用管道喂 y
+          printf 'y\n' | flet build apk --verbose 2>&1 | tail -n 250; exit ${PIPESTATUS[1]}
+          test -f build/apk/*.apk 2>/dev/null || ls -lhR build/ || true
 
       - name: List output
         if: always()
-        run: ls -lhR build/apk || true
+        run: ls -lhR build/apk || ls -lhR build || true
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: flet-apk
-          path: build/apk/*.apk
+          path: |
+            build/apk/*.apk
+            build/**/*.apk
           if-no-files-found: warn
